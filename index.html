@@ -28,16 +28,28 @@
         analyser.fftSize = 512;
 
         async function getAudioSources() {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const audioSelect = document.getElementById('audioSource');
-            devices.forEach(device => {
-                if (device.kind === 'audioinput') {
-                    let option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.textContent = device.label || `Microphone ${audioSelect.length + 1}`;
-                    audioSelect.appendChild(option);
-                }
-            });
+    try {
+        // Explicitly request microphone access
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioSelect = document.getElementById('audioSource');
+
+        devices.forEach(device => {
+            if (device.kind === 'audioinput') {
+                let option = document.createElement('option');
+                option.value = device.deviceId;
+                option.textContent = device.label || `Microphone ${audioSelect.length + 1}`;
+                audioSelect.appendChild(option);
+            }
+        });
+
+        console.log("Microphone access granted.");
+    } catch (err) {
+        console.error("Microphone access denied:", err);
+    }
+}
+
         }
         
         async function startVisualizer() {
