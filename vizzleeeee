@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Visualizer</title>
+    <style>
+        body { background-color: black; color: white; text-align: center; font-family: monospace; }
+        canvas { image-rendering: pixelated; }
+        .visualizer-container { display: flex; flex-direction: column; align-items: center; }
+        .row { display: flex; }
+    </style>
+</head>
+<body>
+    <h1>Audio Visualizer</h1>
+    <label for="audioSource">Select Audio Input: </label>
+    <select id="audioSource"></select>
+    <div class="visualizer-container">
+        <canvas id="xvizz" width="640" height="240"></canvas>
+        <div class="row">
+            <canvas id="xyvizz" width="320" height="240"></canvas>
+            <canvas id="vizzz" width="320" height="240"></canvas>
+        </div>
+    </div>
+    <script>
+        let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+
+        async function getAudioSources() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const audioSelect = document.getElementById('audioSource');
+            devices.forEach(device => {
+                if (device.kind === 'audioinput') {
+                    let option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Microphone ${audioSelect.length + 1}`;
+                    audioSelect.appendChild(option);
+                }
+            });
+        }
+        
+        async function startVisualizer() {
+            const deviceId = document.getElementById('audioSource').value;
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId ? { exact: deviceId } : undefined }});
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            visualize();
+        }
+        
+        function drawGrid(ctx, width, height, gridSize, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            for (let x = 0; x < width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+        }
+        
+        function visualize() {
+            const xvizzCtx = document.getElementById('xvizz').getContext('2d');
+            const xyvizzCtx = document.getElementById('xyvizz').getContext('2d');
+            const vizzzCtx = document.getElementById('vizzz').getContext('2d');
+            
+            let bufferLength = analyser.frequencyBinCount;
+            let dataArray = new Uint8Array(bufferLength);
+
+            function draw() {
+                xvizzCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                xvizzCtx.fillRect(0, 0, 640, 240);
+                xyvizzCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                xyvizzCtx.fillRect(0, 0, 320, 240);
+                vizzzCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                vizzzCtx.fillRect(0, 0, 320, 240);
+                
+                drawGrid(xvizzCtx, 640, 240, 10, 'rgba(80, 60, 150, 0.3)');
+                drawGrid(xyvizzCtx, 320, 240, 10, 'rgba(80, 60, 150, 0.3)');
+                drawGrid(vizzzCtx, 320, 240, 10, 'rgba(80, 60, 150, 0.3)');
+                
+                analyser.getByteTimeDomainData(dataArray);
+                xvizzCtx.fillStyle = 'rgb(151, 104, 252)';
+                xyvizzCtx.fillStyle = 'rgb(151, 104, 252)';
+                vizzzCtx.fillStyle = 'rgb(151, 104, 252)';
+                
+                for (let i = 0; i < 64; i++) {
+                    let value = dataArray[i * (bufferLength / 64)] / 200.0;
+                    let x = i * 10;
+                    let y = value * 240;
+                    xvizzCtx.fillRect(x, y, 10, 10);
+                }
+                
+                for (let i = 0; i < 32; i++) {
+    let x = 160 + ((dataArray[i * 2] - 128) / 60.0) * 160 + (Math.random() * 10 - 5); // More spread + jitter
+    let y = 120 + ((dataArray[i * 2 + 1] - 128) / 60.0) * 120 + (Math.random() * 10 - 5); // More bounce
+    xyvizzCtx.fillRect(Math.floor(x / 10) * 10, Math.floor(y / 10) * 10, 10, 10);
+}
+
+
+                
+                analyser.getByteFrequencyData(dataArray);
+                for (let i = 0; i < 32; i++) {
+                    let value = dataArray[i * 2] / 200.0;
+                    let barHeight = value * 240;
+                    let x = i * 10;
+                    vizzzCtx.fillRect(x, 240 - Math.floor(barHeight / 10) * 10, 10, Math.floor(barHeight / 10) * 10);
+                }
+                
+                drawGrid(xvizzCtx, 640, 240, 10, 'rgba(0, 0, 0, 0.5)');
+                drawGrid(xyvizzCtx, 320, 240, 10, 'rgba(0, 0, 0, 0.5)');
+                drawGrid(vizzzCtx, 320, 240, 10, 'rgba(0, 0, 0, 0.5)');
+                
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        document.getElementById('audioSource').addEventListener('change', () => {
+            audioContext.resume().then(startVisualizer);
+        });
+
+        getAudioSources();
+    </script>
+</body>
+</html>
